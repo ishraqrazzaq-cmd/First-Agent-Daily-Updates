@@ -45,9 +45,9 @@ export const getMorningBriefing = async (): Promise<BriefingData> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const prompt = `
-Provide a morning briefing for today.
-First, give the current weather for New York City. Include temperature in Celsius and a brief description of the conditions. Format it exactly as: WEATHER: [Temperature]°C, [Condition], [City].
-Second, list the top 3 world news headlines. For each headline, provide a brief one-sentence summary. Format each exactly as: HEADLINE: [Headline] - SUMMARY: [Summary].
+Provide a morning briefing for today, focused on Bangladesh.
+First, give the current weather for Dhaka. Include temperature in Celsius and a brief description of the conditions. Format it exactly as: WEATHER: [Temperature]°C, [Condition], [City].
+Second, list the top 3 news headlines for Bangladesh. For each headline, provide a brief one-sentence summary. Format each exactly as: HEADLINE: [Headline] - SUMMARY: [Summary].
 Do not include any other text, greetings, or explanations.
   `;
 

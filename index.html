@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Morning Brief Agent 🌞</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Load Babel for in-browser JSX/TSX transpilation. This is the fix for deployment. -->
+    <!-- Load Babel for in-browser JSX/TSX transpilation. -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script type="importmap">
 {
@@ -22,7 +22,7 @@
 </head>
   <body class="bg-slate-50 text-slate-800">
     <div id="root"></div>
-    <!-- Tell Babel to transpile this script as a module with React & TypeScript presets -->
-    <script data-presets="react,typescript" type="text/babel" data-type="module" src="/index.tsx"></script>
+    <!-- Tell Babel to transpile this script. The src path is now relative ("./index.tsx") -->
+    <script data-presets="react,typescript" type="text/babel" data-type="module" src="./index.tsx"></script>
   </body>
 </html>

@@ -1,0 +1,5 @@
+{
+  "name": "Morning Brief Agent",
+  "description": "An AI agent that provides a daily morning briefing, including today's weather and the top 3 news headlines",
+  "requestFramePermissions": []
+}

@@ -1,60 +1,91 @@
+// services/geminiService.ts
 
-import { GoogleGenAI } from "@google/genai";
-import { BriefingData, Source } from '../types';
+import {
+  GoogleGenerativeAI,
+  HarmCategory,
+  HarmBlockThreshold,
+  FunctionDeclarationsTool,
+} from "@google/genai";
+import { BriefingData } from '../types';
 
-export const getMorningBriefing = async (coords?: { latitude: number; longitude: number; }): Promise<BriefingData> => {
-  if (!process.env.API_KEY) {
-    throw new Error("API_KEY environment variable not set.");
-  }
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// IMPORTANT: Access the API key with the VITE_ prefix
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
-  const locationPrompt = coords 
-    ? `for the location at latitude ${coords.latitude} and longitude ${coords.longitude}.`
-    : `for Dhaka, Bangladesh.`;
+if (!apiKey) {
+  throw new Error("VITE_GEMINI_API_KEY is not set. Please add it to your .env.local file and Vercel environment variables.");
+}
+
+const genAI = new GoogleGenerativeAI(apiKey);
+
+const tools: FunctionDeclarationsTool[] = [
+  {
+    function_declarations: [
+      {
+        name: "get_weather",
+        description: "Get the current weather for a specified location.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            location: {
+              type: "STRING",
+              description: "The city and state, e.g., San Francisco, CA",
+            },
+          },
+          required: ["location"],
+        },
+      },
+      {
+        name: "get_top_headlines",
+        description: "Get the top news headlines for a specified location or topic.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            query: {
+              type: "STRING",
+              description: "The topic or location for the news, e.g., 'world news' or 'local news for London'",
+            },
+          },
+          required: ["query"],
+        },
+      },
+    ],
+  },
+];
+
+const model = genAI.getGenerativeModel({
+  model: "gemini-1.5-flash",
+  tools: tools,
+});
+
+export async function getMorningBriefing(coords?: { latitude: number; longitude: number }): Promise<BriefingData> {
+  const locationPrompt = coords
+    ? `for the current location (latitude: ${coords.latitude}, longitude: ${coords.longitude})`
+    : "for San Francisco, CA (as a default)";
 
   const prompt = `
-Provide a morning briefing for today, ${locationPrompt}
-Respond with ONLY a single, raw JSON object. Do not use markdown, backticks, or any other text outside of the JSON object.
-The JSON object must have two keys: "weather" and "news".
-- The "weather" value must be an object with "temperature" (string, in Celsius), "condition" (string), and "location" (string).
-- The "news" value must be an array of exactly 3 objects, where each object has "headline" (string) and "summary" (string).
-`;
+    Provide a morning briefing. It should include:
+    1. The current weather ${locationPrompt}.
+    2. The top 3 news headlines ${locationPrompt}. Summarize each headline in one sentence.
+    Do not make up any data. Use the provided tools to get real-time information.
+  `;
 
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: {
-        tools: [{ googleSearch: {} }],
-        temperature: 0.2, // Lower temperature for more predictable, structured output
-      },
-    });
-
-    const text = response.text.trim();
-    // In case the model still includes markdown, we'll strip it.
-    const cleanText = text.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-    const parsedContent: { weather: BriefingData['weather']; news: BriefingData['news'] } = JSON.parse(cleanText);
-    
-    const rawSources = response.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
-    const sources: Source[] = rawSources.map((s: any) => ({
-      uri: s.web?.uri ?? '#',
-      title: s.web?.title ?? 'Unknown Source',
-    })).filter((s: Source) => s.uri !== '#');
-
-    // Basic validation
-    if (!parsedContent.weather || !parsedContent.news || !Array.isArray(parsedContent.news) || parsedContent.news.length === 0) {
-      throw new Error("Invalid data structure received from AI.");
+  const chat = model.startChat();
+  const result = await chat.sendMessage(prompt);
+  const response = result.response;
+  
+  if (response.text) {
+    // Attempt to parse the text response as a fallback
+    try {
+      const parsedText = JSON.parse(response.text.replace(/```json|```/g, ''));
+      if (parsedText.weather && parsedText.news) {
+        return parsedText;
+      }
+    } catch (e) {
+        console.error("Could not parse text response from model:", response.text);
     }
-
-    return {
-      ...parsedContent,
-      sources,
-    };
-  } catch (error) {
-    console.error("Error fetching or parsing briefing:", error);
-    if (error instanceof SyntaxError) {
-      throw new Error("Failed to parse the AI's response. The format was not valid JSON.");
-    }
-    throw new Error("Failed to get morning briefing from the AI. Please try again later.");
   }
-};
+  
+  // This is a fallback structure if the model doesn't return a clean JSON object.
+  // In a real-world app, you'd want more robust parsing logic.
+  throw new Error("Failed to get a valid briefing from the AI model. The model did not return the expected structured data.");
+}

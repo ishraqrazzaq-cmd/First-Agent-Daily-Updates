@@ -1,10 +1,7 @@
-import {
-  GoogleGenerativeAI,
-  HarmCategory,
-  HarmBlockThreshold,
-  FunctionDeclarationsTool,
-} from "@google/genai";
-import { BriefingData } from '../types';
+import { GoogleGenerativeAI } from "@google/genai";
+import type { BriefingData, Source } from '../types';
+import type { FunctionDeclarationsTool } from "@google/genai";
+
 
 // IMPORTANT: Access the API key with the VITE_ prefix
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
@@ -64,28 +61,23 @@ export async function getMorningBriefing(coords?: { latitude: number; longitude:
     Provide a morning briefing. It should include:
     1. The current weather ${locationPrompt}.
     2. The top 3 news headlines ${locationPrompt}. Summarize each headline in one sentence.
-    Do not make up any data. Use the provided tools to get real-time information.
+    Do not make up any data. Use the provided tools to get real-time information. Also provide the source URLs for the news.
   `;
 
   const chat = model.startChat();
   const result = await chat.sendMessage(prompt);
   const response = result.response;
   
-  // This is a robust way to handle the model's response
-  // as it may not always call the functions.
   if (response.text) {
     try {
-      // The model might return a JSON string in its text response
       const cleanJsonString = response.text.replace(/```json|```/g, '').trim();
       const parsedData = JSON.parse(cleanJsonString);
       
-      // Basic validation to see if the parsed data looks correct
       if (parsedData.weather && parsedData.news && parsedData.sources) {
         return parsedData;
       }
     } catch (e) {
       console.error("Could not parse the model's text response as JSON:", e);
-      // Fallback if parsing fails
       throw new Error("The AI model returned an invalid response. Please try again.");
     }
   }

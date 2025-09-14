@@ -12,6 +12,7 @@ import ErrorDisplay from './components/ErrorDisplay';
 const App: React.FC = () => {
   const [briefing, setBriefing] = useState<BriefingData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [loadingMessage, setLoadingMessage] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
   const handleFetchBriefing = useCallback(async () => {
@@ -19,8 +20,32 @@ const App: React.FC = () => {
     setError(null);
     setBriefing(null);
 
+    let coords: { latitude: number, longitude: number } | undefined;
+
+    if (navigator.geolocation) {
+      setLoadingMessage('Getting your location...');
+      try {
+        coords = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            (position) => resolve({
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude
+            }),
+            (err) => reject(err),
+            { timeout: 10000, enableHighAccuracy: true }
+          );
+        });
+      } catch (err: any) {
+        console.warn(`Geolocation error (${err.code}): ${err.message}. Proceeding with default location.`);
+        // Don't block the user, just proceed without location.
+      }
+    } else {
+      console.warn('Geolocation is not supported by this browser.');
+    }
+
+    setLoadingMessage('Brewing your morning brief...');
     try {
-      const data = await getMorningBriefing();
+      const data = await getMorningBriefing(coords);
       setBriefing(data);
     } catch (err) {
       console.error(err);
@@ -38,7 +63,7 @@ const App: React.FC = () => {
           {!briefing && !isLoading && !error && (
             <div className="bg-white/60 backdrop-blur-sm rounded-xl shadow-lg p-8 animate-fade-in">
               <h2 className="text-2xl font-bold text-slate-700 mb-4">Ready for your daily update?</h2>
-              <p className="text-slate-600 mb-6">Click the button below to get the latest weather and top news headlines, curated just for you.</p>
+              <p className="text-slate-600 mb-6">Click the button below to get the latest weather and top news headlines, personalized for your location.</p>
               <button
                 onClick={handleFetchBriefing}
                 disabled={isLoading}
@@ -49,7 +74,7 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {isLoading && <LoadingSpinner />}
+          {isLoading && <LoadingSpinner message={loadingMessage} />}
           {error && <ErrorDisplay message={error} onRetry={handleFetchBriefing} />}
           
           {briefing && (

@@ -1,55 +1,24 @@
 
 import { GoogleGenAI } from "@google/genai";
-import { BriefingData, Weather, NewsArticle, Source } from '../types';
+import { BriefingData, Source } from '../types';
 
-const parseBriefingText = (text: string): { weather: Weather; news: NewsArticle[] } => {
-  const lines = text.split('\n').filter(line => line.trim() !== '');
-  
-  let weather: Weather = { temperature: 'N/A', condition: 'N/A', location: 'N/A' };
-  const news: NewsArticle[] = [];
-
-  const weatherLine = lines.find(line => line.startsWith('WEATHER:'));
-  if (weatherLine) {
-    const weatherMatch = weatherLine.match(/WEATHER: (.*?)°[CF], (.*?), (.*)/);
-    if (weatherMatch) {
-      weather = {
-        temperature: `${weatherMatch[1]}°C`, // Assuming Celsius for consistency
-        condition: weatherMatch[2].trim(),
-        location: weatherMatch[3].trim().replace(/\.$/, ''),
-      };
-    }
-  }
-
-  const headlineLines = lines.filter(line => line.startsWith('HEADLINE:'));
-  headlineLines.forEach(line => {
-    const headlineMatch = line.match(/HEADLINE: (.*?) - SUMMARY: (.*)/);
-    if (headlineMatch) {
-      news.push({
-        headline: headlineMatch[1].trim(),
-        summary: headlineMatch[2].trim(),
-      });
-    }
-  });
-
-  if (!weatherLine && news.length === 0) {
-    throw new Error("Could not parse the briefing from the AI's response. The format might have changed.");
-  }
-  
-  return { weather, news };
-};
-
-export const getMorningBriefing = async (): Promise<BriefingData> => {
+export const getMorningBriefing = async (coords?: { latitude: number; longitude: number; }): Promise<BriefingData> => {
   if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable not set.");
   }
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+  const locationPrompt = coords 
+    ? `for the location at latitude ${coords.latitude} and longitude ${coords.longitude}.`
+    : `for Dhaka, Bangladesh.`;
+
   const prompt = `
-Provide a morning briefing for today, focused on Bangladesh.
-First, give the current weather for Dhaka. Include temperature in Celsius and a brief description of the conditions. Format it exactly as: WEATHER: [Temperature]°C, [Condition], [City].
-Second, list the top 3 news headlines for Bangladesh. For each headline, provide a brief one-sentence summary. Format each exactly as: HEADLINE: [Headline] - SUMMARY: [Summary].
-Do not include any other text, greetings, or explanations.
-  `;
+Provide a morning briefing for today, ${locationPrompt}
+Respond with ONLY a single, raw JSON object. Do not use markdown, backticks, or any other text outside of the JSON object.
+The JSON object must have two keys: "weather" and "news".
+- The "weather" value must be an object with "temperature" (string, in Celsius), "condition" (string), and "location" (string).
+- The "news" value must be an array of exactly 3 objects, where each object has "headline" (string) and "summary" (string).
+`;
 
   try {
     const response = await ai.models.generateContent({
@@ -57,10 +26,14 @@ Do not include any other text, greetings, or explanations.
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
+        temperature: 0.2, // Lower temperature for more predictable, structured output
       },
     });
 
-    const parsedContent = parseBriefingText(response.text);
+    const text = response.text.trim();
+    // In case the model still includes markdown, we'll strip it.
+    const cleanText = text.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    const parsedContent: { weather: BriefingData['weather']; news: BriefingData['news'] } = JSON.parse(cleanText);
     
     const rawSources = response.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
     const sources: Source[] = rawSources.map((s: any) => ({
@@ -68,12 +41,20 @@ Do not include any other text, greetings, or explanations.
       title: s.web?.title ?? 'Unknown Source',
     })).filter((s: Source) => s.uri !== '#');
 
+    // Basic validation
+    if (!parsedContent.weather || !parsedContent.news || !Array.isArray(parsedContent.news) || parsedContent.news.length === 0) {
+      throw new Error("Invalid data structure received from AI.");
+    }
+
     return {
       ...parsedContent,
       sources,
     };
   } catch (error) {
     console.error("Error fetching or parsing briefing:", error);
+    if (error instanceof SyntaxError) {
+      throw new Error("Failed to parse the AI's response. The format was not valid JSON.");
+    }
     throw new Error("Failed to get morning briefing from the AI. Please try again later.");
   }
 };

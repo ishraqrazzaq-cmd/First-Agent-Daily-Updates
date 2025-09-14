@@ -1,5 +1,3 @@
-// src/types.ts
-
 export interface Weather {
   temperature: string;
   condition: string;

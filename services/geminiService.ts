@@ -1,5 +1,3 @@
-// services/geminiService.ts
-
 import {
   GoogleGenerativeAI,
   HarmCategory,
@@ -73,19 +71,24 @@ export async function getMorningBriefing(coords?: { latitude: number; longitude:
   const result = await chat.sendMessage(prompt);
   const response = result.response;
   
+  // This is a robust way to handle the model's response
+  // as it may not always call the functions.
   if (response.text) {
-    // Attempt to parse the text response as a fallback
     try {
-      const parsedText = JSON.parse(response.text.replace(/```json|```/g, ''));
-      if (parsedText.weather && parsedText.news) {
-        return parsedText;
+      // The model might return a JSON string in its text response
+      const cleanJsonString = response.text.replace(/```json|```/g, '').trim();
+      const parsedData = JSON.parse(cleanJsonString);
+      
+      // Basic validation to see if the parsed data looks correct
+      if (parsedData.weather && parsedData.news && parsedData.sources) {
+        return parsedData;
       }
     } catch (e) {
-        console.error("Could not parse text response from model:", response.text);
+      console.error("Could not parse the model's text response as JSON:", e);
+      // Fallback if parsing fails
+      throw new Error("The AI model returned an invalid response. Please try again.");
     }
   }
   
-  // This is a fallback structure if the model doesn't return a clean JSON object.
-  // In a real-world app, you'd want more robust parsing logic.
-  throw new Error("Failed to get a valid briefing from the AI model. The model did not return the expected structured data.");
+  throw new Error("Failed to get a valid briefing from the AI model. No response text was generated.");
 }

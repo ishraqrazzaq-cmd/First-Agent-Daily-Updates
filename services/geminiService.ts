@@ -1,6 +1,10 @@
 import { GoogleGenerativeAI } from "@google/genai";
 import type { BriefingData, Source } from '../types';
 import type { FunctionDeclarationsTool } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/genai";
+const genai = new GoogleGenerativeAI({ apiKey: process.env.GOOGLE_API_KEY });
+export const model = genai.getGenerativeModel({ model: "gemini-2.0-flash" });
+
 
 
 // IMPORTANT: Access the API key with the VITE_ prefix

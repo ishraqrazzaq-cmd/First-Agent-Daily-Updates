@@ -1,3 +1,4 @@
+// src/types.ts
 
 export interface Weather {
   temperature: string;
@@ -11,8 +12,8 @@ export interface NewsArticle {
 }
 
 export interface Source {
-  uri: string;
   title: string;
+  uri: string;
 }
 
 export interface BriefingData {

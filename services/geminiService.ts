@@ -1,7 +1,7 @@
 // services/geminiService.ts
 import { GoogleGenAI } from "@google/genai";
 
-// Prefer server-side usage; for local dev you can also use VITE_GOOGLE_API_KEY.
+// Use server key on Vercel; VITE_* only for local dev if you truly need client-side calls.
 const apiKey =
   (process.env.GOOGLE_API_KEY as string | undefined) ??
   (import.meta.env.VITE_GOOGLE_API_KEY as string | undefined);
@@ -12,13 +12,19 @@ if (!apiKey) {
   );
 }
 
-export const ai = new GoogleGenAI({ apiKey });
+const ai = new GoogleGenAI({ apiKey });
 
-/** One-shot text generation helper */
-export async function ask(prompt: string) {
+/** Internal helper */
+async function ask(prompt: string) {
   const res = await ai.models.generateContent({
-    model: "gemini-2.0-flash-001", // or gemini-2.0-flash
-    contents: prompt,              // string or structured contents
+    model: "gemini-2.0-flash-001",    // or "gemini-2.0-flash"
+    contents: prompt                  // v1 SDK accepts string or structured contents
   });
-  return res.text;                 // note: .text (not response.text())
+  return res.text;                     // note: v1 returns .text
+}
+
+/** ✅ Named export expected by App.tsx */
+export async function getMorningBriefing(prompt: string) {
+  // You can shape the prompt however App.tsx expects; for now pass-through:
+  return ask(prompt);
 }

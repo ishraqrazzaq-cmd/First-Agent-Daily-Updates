@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback } from 'react';
-import { getMorningBriefing } from './services/geminiService';
+import { ask as getMorningBriefing } from './services/geminiService';
 import { BriefingData } from './types';
 import Header from './components/Header';
 import WeatherDisplay from './components/WeatherDisplay';
